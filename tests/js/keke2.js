@@ -9,14 +9,18 @@ var cursors;
 var player;
 var playerConfig = {
 	bounce: 0.2,
-	gravity: 15,
 	speed: 150,
-	jumpSpeed: 350,
+	jumpHeight: 350,
 	jumping: false,
-	currentAnimation: ''
+	currentAnimation: '',
+	facingForward: true
 };
 
-var facingForward = true;
+var gravity = 15;
+
+var lollipops;
+var score = 0;
+var scoreText;
 
 var game = new Phaser.Game(stage.width, stage.height, Phaser.AUTO, '', { preload: preload, create: create, update: update });
 
@@ -25,8 +29,10 @@ function preload() {
   game.load.image('mountains', 'images/hills03_grey.png');
   game.load.image('treesBack', 'images/trees_back01.png');
   game.load.image('treesFore', 'images/trees_fore01.png');
+  game.load.image('platform', 'images/platform.png');
   game.load.image('grass', 'images/grass01.png');
-  // game.load.image('keke', 'images/keke_tiny.png');
+  game.load.image('grass2', 'images/grass01.png');
+  game.load.image('lollipop', 'images/lollipop.png');
 
   game.load.spritesheet('keke', 'images/keke_character2.png', 76, 128, 35);
 
@@ -40,15 +46,33 @@ function create() {
 	game.add.sprite(0, 0, 'mountains');
 	game.add.sprite(0, (stage.height - 490), 'treesBack');
 	game.add.sprite(0, 0, 'treesFore');
+	game.add.sprite(2048, 0, 'mountains');
+	game.add.sprite(2048, (stage.height - 490), 'treesBack');
+	game.add.sprite(2048, 0, 'treesFore');
 	
+  game.world.setBounds(0, 0, 4096, stage.height);
+
   //  The platforms group contains the ground and the 2 ledges we can jump on
   platforms = game.add.group();
-  var ground = platforms.create(0, game.world.height - 64, 'grass');
-  //  This stops it from falling away when you jump on it
-  ground.scale.setTo(2, 1);
+
+  var ground = platforms.create(0, game.world.height - 28, 'grass');
+  // ground.scale.setTo(1, 1);
   ground.body.immovable = true;
 
-  game.world.setBounds(0, 0, 2048, 500);
+  var ground2 = platforms.create(2048, game.world.height - 56, 'grass2');
+  ground2.scale.setTo(1, 1);
+  ground2.body.immovable = true;
+
+  //  Now let's create two ledges
+   var ledge = platforms.create(500, (stage.height - 80), 'platform');
+   ledge.body.immovable = true;
+
+   ledge = platforms.create(800, (stage.height - 130), 'platform');
+   ledge.body.immovable = true;
+
+   ledge = platforms.create(1100, (stage.height - 180), 'platform');
+   ledge.body.immovable = true;
+
 
   player = game.add.sprite((stage.width/2 - 76/2), (stage.height - 148), 'keke');
   player.anchor.setTo(0.5, 0.5);
@@ -62,14 +86,31 @@ function create() {
 		
 	//  Player physics properties. Give the little guy a slight bounce.
   player.body.bounce.y = playerConfig.bounce;
-  player.body.gravity.y = playerConfig.gravity;
+  player.body.gravity.y = gravity;
   player.body.collideWorldBounds = true;
 	
   game.camera.follow(player, Phaser.Camera.FOLLOW_PLATFORMER);
 
 	game.add.sprite(0, (stage.height - 220), 'grass');
 
-  key1 = game.input.keyboard.addKey(Phaser.Keyboard.ONE);
+    //  Finally some lollipops to collect
+    lollipops = game.add.group();
+
+    //  Here we'll create 12 of them evenly spaced apart
+    for (var i = 0; i < 28; i++)
+    {
+        //  Create a lollipop inside of the 'lollipops' group
+        var lollipop = lollipops.create((i+2) * 175, 0, 'lollipop');
+
+        //  Let gravity do its thing
+        lollipop.body.gravity.y = gravity;
+
+        //  This just gives each lollipop a slightly random bounce value
+        lollipop.body.bounce.y = 0.15 + Math.random() * 0.2;
+    }
+
+	// CONTROLS
+ key1 = game.input.keyboard.addKey(Phaser.Keyboard.ONE);
   key1.onDown.add(quit, this);
 
   // Init game controller with left thumb stick
@@ -102,11 +143,18 @@ function create() {
     // similar to this example page, where the canvas isn't the whole screen.
     $('canvas').last().css('z-index', 20);
     $('canvas').last().offset( $('canvas').first().offset() );
+
+   //  The score
+	var scoreBoard = game.add.group(null);
+	// scoreText.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#fff' });
+    scoreText = game.add.text(16, 16, 'Score: 0', { fontSize: '28px', fill: '#fff' });
+	scoreBoard.add(scoreText);
  }
 
 function update() {
 
   game.physics.collide(player, platforms);
+  game.physics.collide(lollipops, platforms);
  
  //  Reset the players velocity (movement)
    player.body.velocity.x = 0;
@@ -118,7 +166,7 @@ function update() {
 
 		// console.log('play run left');
 		//        player.animations.play('runL');
-			facingForward = false;
+			playerConfig.facingForward = false;
    }
    else if (cursors.right.isDown)
    {
@@ -127,13 +175,13 @@ function update() {
 
 		// console.log('play run right');
        // player.animations.play('runR');
-			facingForward = true;
+			playerConfig.facingForward = true;
    }
    
    //  Allow the player to jump if they are touching the ground.
 	if (cursors.up.isDown && player.body.touching.down)
 	{
-		player.body.velocity.y = -playerConfig.jumpSpeed;
+		player.body.velocity.y = -playerConfig.jumpHeight;
 		playerConfig.jumping = true;
 	} else {
 		playerConfig.jumping = false;
@@ -142,60 +190,40 @@ function update() {
    // Check key states every frame.
    if (game.input.joystickLeft) {
 		var jl = game.input.joystickLeft;
-	// console.log('joystickLeft, nX/nY = ' + jl.normalizedY);
-       // Move the ufo using the joystick's normalizedX and Y values,
-       // which range from -1 to 1.
-		// var velX = jl.normalizedX * playerConfig.speed;
-		console.log(jl.normalizedX);
 		if(jl.normalizedX > 0) {
 			player.body.velocity.x = playerConfig.speed;
-			facingForward = true;
+			playerConfig.facingForward = true;
 		} else if(jl.normalizedX < 0) {
 			player.body.velocity.x = -playerConfig.speed;
-			facingForward = false;
+			playerConfig.facingForward = false;
 		}
 		
 		playerConfig.jumping = false;
 		if(player.body.touching.down) {
-			// console.log('grounded');
 			if(jl.normalizedY > 0.5) {
-				console.log(jl.normalizedY);
-				player.body.velocity.y = -playerConfig.jumpSpeed;
-				// console.log('touching ground, velY = ' + velY);
+				player.body.velocity.y = -playerConfig.jumpHeight;
 				playerConfig.jumping = true;
 			}
 		}
-       // player.body.velocity.setTo(velX, 0);
-		// player.body.velocity.x = velX;
-		// player.body.velocity.setTo(game.input.joystickLeft.normalizedX * playerConfig.speed * -1);
-		// console.log('velocity = ' + player.body.velocity.x + '/' + player.body.velocity.y);
-		// _setPlayerAnimations();
-   } else {
-       // player.body.velocity.setTo(0, 0);
-      // player.animations.stop();
-	// if(facingForward) {
-	//        player.frame = 0;
-	// } else {
-	// 	player.frame = 1;
-	// }
    }
- 	_setPlayerAnimations();
+ 	setPlayerAnimations();
 
+    game.physics.overlap(player, lollipops, collectLollipop, null, this);
 }
 
-function _setPlayerAnimations() {
+function setPlayerAnimations() {
 	// console.log('player vel x = ' + player.body.velocity.x);
 	if(playerConfig.jumping) {
 		// jumping
-		if(facingForward) {
+		if(playerConfig.facingForward) {
 			// player.animations.play('jumpR', 1, false);
-			// player.frame = 9;
-			player.frame = 2;
+			player.frame = 9;
+			// player.frame = 2;
 			playerConfig.currentAnimation = 'jumpR';
 		} else {
 			// player.animations.play('jumpL', 1, false);
-			// player.frame = 24;
-			player.frame = 3;
+			player.frame = 24;
+			// player.frame = 3;
 			playerConfig.currentAnimation = 'jumpL';
 		}
 	} else if(player.body.touching.down) {
@@ -204,18 +232,18 @@ function _setPlayerAnimations() {
 		 		console.log('play run right');
 				player.animations.play('runR', 15, true);
 				playerConfig.currentAnimation = 'runR';
-				facingForward = false;
+				playerConfig.facingForward = false;
 			}
 		} else if(player.body.velocity.x < 0) {
 			if(playerConfig.currentAnimation !== 'runL') {
 		 		console.log('play run left');
 				player.animations.play('runL', 15, true);
 				playerConfig.currentAnimation = 'runL';
-				facingForward = false;
+				playerConfig.facingForward = false;
 			}
 		} else if(player.body.velocity.x === 0) {
 			player.animations.stop();
-			if(facingForward) {
+			if(playerConfig.facingForward) {
 				playerConfig.currentAnimation = 'idleR';
 				player.frame = 0;
 			} else {
@@ -224,8 +252,17 @@ function _setPlayerAnimations() {
 			}
 		}
 	}
+}
 
-	
+function collectLollipop (player, lollipop) {
+    
+    // Removes the lollipop from the screen
+    lollipop.kill();
+
+    //  Add and update the score
+    score += 10;
+    scoreText.content = 'Score: ' + score;
+
 }
 function quit() {
 	console.log('quit');
