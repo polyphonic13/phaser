@@ -71,6 +71,7 @@ function create() {
 	//  Player physics properties. Give the little guy a slight bounce.
   player.body.bounce.y = playerConfig.bounce;
   player.body.gravity.y = playerConfig.gravity;
+  player.body.collideWorldBounds = true;
 	
   game.camera.follow(player, Phaser.Camera.FOLLOW_PLATFORMER);
 
