@@ -3,7 +3,9 @@
 <head> 
 	<meta charset="UTF-8" />
 	<title>Phaser test 1</title>
+	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.js"></script>
 	<script type="text/javascript" src="js/phaser.min.js"></script>
+	<script type="text/javascript" src="js/gamecontroller.js"></script>
     <style type="text/css">
         body {
             margin: 0;
@@ -14,20 +16,25 @@
 
 <script type="text/javascript">
 var stage = {
-	width: 800,
-	height: 500
+	// width: 800,
+	// height: 500
+	width: document.documentElement.clientWidth - 10,
+	height: document.documentElement.clientHeight - 10
 };
 var platforms;
 var cursors;
 var player;
 var playerConfig = {
 	bounce: 0.2,
-	gravity: 15
+	gravity: 150,
+	speed: 150,
+	jumpSpeed: 35,
+	currentAnimation: ''
 };
 
 var facingForward = true;
 
-var game = new Phaser.Game(800, 500, Phaser.AUTO, '', { preload: preload, create: create, update: update });
+var game = new Phaser.Game(stage.width, stage.height, Phaser.AUTO, '', { preload: preload, create: create, update: update });
 
 function preload() {
   game.load.image('sky', 'images/night_sky.jpg');
@@ -43,11 +50,12 @@ function preload() {
 }
 
 function create() {
-	game.add.sprite(0, 0, 'sky');
+	var sky = game.add.sprite(0, 0, 'sky');
+	sky.fixedToCamera = true;
+	
 	game.add.sprite(0, 0, 'mountains');
 	game.add.sprite(0, (stage.height - 490), 'treesBack');
 	game.add.sprite(0, 0, 'treesFore');
-	game.add.sprite(0, (stage.height - 220), 'grass');
 	
   //  The platforms group contains the ground and the 2 ledges we can jump on
   platforms = game.add.group();
@@ -75,9 +83,42 @@ function create() {
 	
   game.camera.follow(player, Phaser.Camera.FOLLOW_PLATFORMER);
 
+	game.add.sprite(0, (stage.height - 220), 'grass');
+
   key1 = game.input.keyboard.addKey(Phaser.Keyboard.ONE);
   key1.onDown.add(quit, this);
-}
+
+  // Init game controller with left thumb stick
+   GameController.init({
+        left: {
+            type: 'joystick',
+            joystick: {
+                touchStart: function() {
+                    // Don't need this, but the event is here if you want it.
+                },
+                touchMove: function(joystick_details) {
+                    game.input.joystickLeft = joystick_details;
+                },
+                touchEnd: function() {
+                    game.input.joystickLeft = null;
+                }
+            }
+        },
+        right: {
+            // We're not using anything on the right for this demo, but you can add buttons, etc.
+            // See https://github.com/austinhallock/html5-virtual-game-controller/ for examples.
+            type: 'none'
+        }
+    });
+    
+    // This is an ugly hack to get this to show up over the Phaser Canvas
+    // (which has a manually set z-index in the example code) and position it in the right place,
+    // because it's positioned relatively...
+    // You probably don't need to do this in your game unless your game's canvas is positioned in a manner
+    // similar to this example page, where the canvas isn't the whole screen.
+    $('canvas').last().css('z-index', 20);
+    $('canvas').last().offset( $('canvas').first().offset() );
+ }
 
 function update() {
 
@@ -89,28 +130,20 @@ function update() {
    if (cursors.left.isDown)
    {
        //  Move to the left
-       player.body.velocity.x = -150;
+       player.body.velocity.x = -playerConfig.speed;
 
-       player.animations.play('runL');
+		// console.log('play run left');
+		//        player.animations.play('runL');
 			facingForward = false;
    }
    else if (cursors.right.isDown)
    {
        //  Move to the right
-       player.body.velocity.x = 150;
+       player.body.velocity.x = playerConfig.speed;
 
-       player.animations.play('runR');
+		// console.log('play run right');
+       // player.animations.play('runR');
 			facingForward = true;
-   }
-   else
-   {
-       //  Stand still
-       player.animations.stop();
-			if(facingForward) {
-       player.frame = 0;
-			} else {
-				player.frame = 1;
-			}
    }
    
    //  Allow the player to jump if they are touching the ground.
@@ -124,8 +157,66 @@ function update() {
 				
 			}
    }
+
+   // Check key states every frame.
+   if (game.input.joystickLeft) {
+	// console.log('joystickLeft, nX/nY = ' + game.input.joystickLeft.normalizedX + '/' + game.input.joystickLeft.normalizedY);
+       // Move the ufo using the joystick's normalizedX and Y values,
+       // which range from -1 to 1.
+		var velX = game.input.joystickLeft.normalizedX * playerConfig.speed;
+		var velY;
+		if(player.body.touching.down) {
+			velY = game.input.joystickLeft.normalizedY * playerConfig.jumpSpeed * -1;
+			// console.log('touching ground, velY = ' + velY);
+		} else {
+			velY = 0;
+		}
+       player.body.velocity.setTo(velX, velY);
+		// player.body.velocity.setTo(game.input.joystickLeft.normalizedX * playerConfig.speed * -1);
+		// console.log('velocity = ' + player.body.velocity.x + '/' + player.body.velocity.y);
+		// _setPlayerAnimations();
+   }
+   else {
+       // player.body.velocity.setTo(0, 0);
+      // player.animations.stop();
+	// if(facingForward) {
+	//        player.frame = 0;
+	// } else {
+	// 	player.frame = 1;
+	// }
+   }
+	_setPlayerAnimations();
+
 }
 
+function _setPlayerAnimations() {
+	// console.log('player vel x = ' + player.body.velocity.x);
+	if(player.body.velocity.x > 0) {
+		if(playerConfig.currentAnimation !== 'runR') {
+	 		console.log('play run right');
+			player.animations.play('runR', 15, true);
+			playerConfig.currentAnimation = 'runR';
+			facingForward = false;
+		}
+	} else if(player.body.velocity.x < 0) {
+		if(playerConfig.currentAnimation !== 'runL') {
+	 		console.log('play run left');
+			player.animations.play('runL', 15, true);
+			playerConfig.currentAnimation = 'runL';
+			facingForward = false;
+		}
+	} else {
+		player.animations.stop();
+		if(facingForward) {
+			playerConfig.currentAnimation = 'idleR';
+			player.frame = 0;
+		} else {
+			playerConfig.currentAnimation = 'idleL';
+			player.frame = 1;
+		}
+		
+	}
+}
 function quit() {
 	console.log('quit');
 	game.destroy();
