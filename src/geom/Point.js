@@ -1,6 +1,6 @@
 /**
 * @author       Richard Davey <rich@photonstorm.com>
-* @copyright    2013 Photon Storm Ltd.
+* @copyright    2014 Photon Storm Ltd.
 * @license      {@link https://github.com/photonstorm/phaser/blob/master/license.txt|MIT License}
 */
 
@@ -243,7 +243,7 @@ Phaser.Point.prototype = {
 
     /**
     * Alters the length of the vector without changing the direction
-    * @method Phaser.Point#getMagnitude
+    * @method Phaser.Point#setMagnitude
     * @param {number} magnitude the desired magnitude of the resulting vector
     * @return {Phaser.Point} the modified original vector
     */
@@ -287,6 +287,8 @@ Phaser.Point.prototype = {
     }
 
 };
+
+Phaser.Point.prototype.constructor = Phaser.Point;
 
 /**
 * Adds the coordinates of two points together to create a new point.
